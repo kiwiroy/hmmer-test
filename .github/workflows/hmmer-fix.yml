@@ -1,0 +1,48 @@
+name: make check pass
+on: [push]
+jobs:
+
+  build:
+    name: Build
+    runs-on: ubuntu-18.04
+    strategy:
+      matrix:
+        alpine_version:
+          - '3.12'
+        hmmer_version:
+          - '3.3.1'
+    container:
+      image: library/alpine:${{ matrix.alpine_version }}
+    steps:
+    - name: Dependencies
+      run: |
+        apk --update add --virtual .build-deps build-base curl gcc git gsl-dev make perl python3
+        apk --update add --virtual .runtime gsl
+    - name: Download and Build HMMER
+      run: |
+        curl -Lo hmmer-${VERSION}.tar.gz http://eddylab.org/software/hmmer/hmmer-${VERSION}.tar.gz
+        tar -xzf hmmer-${VERSION}.tar.gz
+        cd hmmer-${VERSION}
+        ln -s easel/devkit devkit
+        cat - <<EOF | patch -p1 -u
+        diff --git a/easel/Makefile.in b/easel/Makefile.in
+        index 0d2b8a2..d412ab6 100644
+        --- a/easel/Makefile.in
+        +++ b/easel/Makefile.in
+        @@ -67,7 +67,7 @@ VMX_CFLAGS     = @VMX_CFLAGS@
+         CPPFLAGS       = @CPPFLAGS@
+         LDFLAGS        = @LDFLAGS@
+         LIBGSL         = @LIBGSL@
+        -LIBS           = @LIBS@ @PTHREAD_LIBS@
+        +LIBS           = @LIBS@ @PTHREAD_LIBS@ @LIBGSL@
+         
+         
+         # Other tools
+        EOF
+        ./configure --with-gsl
+        make
+        make check
+        make install
+      env:
+        VERSION: ${{ matrix.hmmer_version }}
+        SQC_NONZERO_EXIT: 1
